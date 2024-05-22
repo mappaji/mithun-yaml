@@ -1,0 +1,1085 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: ipccprod-prometheus
+  namespace: monitoring
+  uid: 44bb6302-df14-4674-8036-322e0c2fd05e
+  resourceVersion: '320788652'
+  creationTimestamp: '2023-03-19T05:10:53Z'
+  labels:
+    app: prometheus
+    app.kubernetes.io/managed-by: Helm
+    chart: prometheus-19.7.2
+    component: server
+    heritage: Helm
+    release: ipccprod
+  annotations:
+    meta.helm.sh/release-name: ipccprod
+    meta.helm.sh/release-namespace: monitoring
+  managedFields:
+    - manager: helm
+      operation: Update
+      apiVersion: v1
+      time: '2023-03-19T05:10:53Z'
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:data:
+          .: {}
+          f:allow-snippet-annotations: {}
+          f:recording_rules.yml: {}
+          f:rules: {}
+        f:metadata:
+          f:annotations:
+            .: {}
+            f:meta.helm.sh/release-name: {}
+            f:meta.helm.sh/release-namespace: {}
+          f:labels:
+            .: {}
+            f:app: {}
+            f:app.kubernetes.io/managed-by: {}
+            f:chart: {}
+            f:component: {}
+            f:heritage: {}
+            f:release: {}
+    - manager: dashboard
+      operation: Update
+      apiVersion: v1
+      time: '2023-10-26T16:50:20Z'
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:data:
+          f:alerts: {}
+          f:prometheus.yml: {}
+data:
+  alerts: |
+    groups:
+    - name: kubernetesApps
+      rules:
+      - alert: Node is out of disk space
+        annotations:
+          summary: This is to check if a worker node is out of diskspace and cannot host
+            any more pods
+        expr: kube_node_status_condition{condition="OutOfDisk", status="true"}==1
+        for: 2m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: warning
+      - alert: TargetDown
+        annotations:
+          summary: worker node is Down.
+        expr: up{job="kubernetes-nodes"}==0
+        for: 1m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: critical
+      - alert: AlertmanagerDown
+        annotations:
+          summary: Alertmanager has disappeared from Prometheus target discovery
+        expr: kube_pod_status_phase{pod=~"^prometheus-alertmanager.*", phase="error"}
+          * on (pod,namespace) group_right kube_pod_labels == 0
+        for: 1m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: critical
+      - alert: PrometheusDown
+        annotations:
+          summary: Prometheus has disappeared from Prometheus target discovery
+        expr: kube_pod_status_phase{pod=~"^prometheus-server.*", phase="error"} * on (pod,namespace)
+          group_right kube_pod_labels == 0
+        for: 1m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: critical
+      - alert: KubePodNotReady
+        annotations:
+          summary: '{{ $labels.pod }} is not ready'
+        expr: (kube_pod_status_phase{job="kubernetes-service-endpoints",phase=~"Pending|Unknown"})
+          > 0
+        for: 1m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: warning
+      - alert: KubePodCrashLooping
+        annotations:
+          summary: '{{ $labels.namespace }}/{{ $labels.pod }} ({{ $labels.container }})
+            is  restarting {{ printf "%.2f" $value }} / second'
+        expr: rate(kube_pod_container_status_restarts_total{job="kubernetes-service-endpoints"}[5m])
+          > 0
+        for: 5m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: critical
+      - alert: KubeDeploymentReplicasMismatch
+        annotations:
+          summary: Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has not
+            matched the expected number of replicas for longer than 5 minutes.
+        expr: kube_deployment_spec_replicas{job="kubernetes-service-endpoints"} != kube_deployment_status_replicas_available{job="kubernetes-service-endpoints"}
+        for: 5m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: warning
+      - alert: KubeDeploymentReplicasMismatch
+        annotations:
+          summary: Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has not
+            matched the expected number of replicas for longer than 5 minutes.
+        expr: kube_deployment_spec_replicas{job="kubernetes-service-endpoints",namespace="prod",namespace="aftprod",namespace="commonprod"}!= kube_deployment_status_replicas_available{job="kubernetes-service-endpoints"}
+        for: 5m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: warning
+      - alert: KubeStatefulSetReplicasMismatch
+        annotations:
+          summary: StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} has not
+            matched the expected number of replicas for longer than 10 minutes
+        expr: kube_statefulset_status_replicas_ready{job="kubernetes-service-endpoints"}
+          != kube_statefulset_status_replicas{job="kubernetes-service-endpoints"}
+        for: 10m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: warning
+      - alert: KubeDaemonSetMisScheduled
+        annotations:
+          summary: '{{ $value }} Pods of DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset
+            }} are running where they are not supposed to run.'
+        expr: kube_daemonset_status_number_misscheduled{job="kubernetes-service-endpoints"}
+          > 0
+        for: 5m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: warning
+      - alert: KubeDaemonSetNotScheduled
+        annotations:
+          summary: '{{ $value }} Pods of DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset  }}
+            are not scheduled.'
+        expr: kube_daemonset_status_desired_number_scheduled{job="kubernetes-service-endpoints"}
+          - kube_daemonset_status_current_number_scheduled{job="kubernetes-service-endpoints"}
+          > 0
+        for: 5m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: warning
+      - alert: grafana is Down
+        annotations:
+          summary: To check the number of pods for the process if above 0
+        expr: kube_pod_status_phase{pod=~"^grafana.*", phase="error"} * on (pod,namespace)
+          group_right kube_pod_labels == 0
+        for: 1m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: warning
+      - alert: CoreDNSDown
+        annotations:
+          summary: To check the number of pods for the process if above 0
+        expr: count(kube_pod_status_phase{pod=~"^coredns.*" , phase="Running"}) < 1
+        for: 1m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          dns: DNS_DOWN
+          resource: IKS
+          severity: critical
+      - alert: AutoScheduleCoreDNS
+        annotations:
+          summary: Core dns auto scheduler is down
+        expr: kube_pod_status_phase{pod=~"^coredns-autoscaler.*", phase="Running"} * on
+          (pod,namespace) group_right kube_pod_labels == 0
+        for: 1m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          dns: AUTO_DNS_DOWN
+          resource: IKS
+          severity: critical
+      - alert: kubernetes-dashboardPodDown
+        annotations:
+          summary: To check the number of pods for the process if above 0
+        expr: kube_pod_status_phase{pod=~"^kubernetes-dashboard.*", phase="Running"} *
+          on (pod,namespace) group_right kube_pod_labels == 0
+        for: 1m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: warning
+      - alert: Calico-nodePodDown
+        annotations:
+          summary: To check the number of pods for the process if above 0
+        expr: count(kube_pod_status_phase{pod=~"^calico-node.*" , phase="Running"})< count
+          (kube_node_created)
+        for: 1m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: critical
+      - alert: Calico-kubeControllerPodDown
+        annotations:
+          summary: To check the number of pods for the process if above 0
+        expr: kube_pod_status_phase{pod=~"^calico-kube-controllers.*", phase="Running"}
+          * on (pod,namespace) group_right kube_pod_labels == 0
+        for: 1m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: critical
+      - alert: KubeNodeNotReady
+        annotations:
+          message: '{{ $labels.node }} has been unready for more than 5 mins.'
+        expr: kube_node_status_condition{condition="Ready",job="kubernetes-service-endpoints",status="true"}
+          == 0
+        for: 1m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: critical
+      - alert: KubePersistentVolumeErrors
+        annotations:
+          message: The persistent volume {{ $labels.persistentvolume }} has status {{
+            $labels.phase }}
+        expr: kube_persistentvolume_status_phase{job="kubernetes-service-endpoints",phase=~"Failed|Pending"}
+          > 0
+        for: 5m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: warning
+      - alert: KubePersistentVolumeFullInFourDays
+        annotations:
+          message: Based on recent sampling, the PersistentVolume claimed by {{ $labels.persistentvolumeclaim  }}
+            in Namespace {{ $labels.namespace }} is expected to fill up within four days.  Currently
+            {{ printf "%0.2f" $value }}% is available.
+        expr: predict_linear(kubelet_volume_stats_available_bytes[6h], 4 * 24 * 3600) < 0
+        for: 5m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: warning
+      - alert: KubePersistentVolumeUsageCritical
+        annotations:
+          message: The PersistentVolume claimed by {{ $labels.persistentvolumeclaim }}
+            in Namespace {{ $labels.namespace }} is only {{ printf "%0.2f" $value }}%  free.
+        expr: 100 * kubelet_volume_stats_available_bytes{job="kubelet"} / kubelet_volume_stats_capacity_bytes{job="kubelet"}  <
+          99
+        for: 2m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: warning
+      - alert: ALBIngressControllerDown
+        annotations:
+          message: One of the ALB-Ingress-Controller is down
+        expr: kube_pod_status_phase{pod=~"^public-.*", phase="Running"} * on (pod,namespace)
+          group_right kube_pod_labels == 0
+        for: 5m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: critical
+      - alert: Cluster CPU usage is above threshold 75%
+        annotations:
+          message: The CPU usage of the cluster is above threshold value 75%
+        expr: (sum (rate (container_cpu_usage_seconds_total{id="/"}[5m])) / sum (machine_cpu_cores))*100
+          > 75
+        for: 15m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: warning
+      - alert: Cluster CPU usage is above threshold 90%
+        annotations:
+          message: The CPU usage of the cluster is above threshold value 90%
+        expr: (sum (rate (container_cpu_usage_seconds_total{id="/"}[5m])) / sum (machine_cpu_cores))*100
+          > 90
+        for: 15m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: critical
+      - alert: Cluster Memory usage is above threshold 75%
+        annotations:
+          message: The Memory usage of the Cluster is above threshold value 75%
+        expr: (sum(node_memory_MemTotal_bytes) - sum(node_memory_MemFree_bytes + node_memory_Buffers_bytes
+          + node_memory_Cached_bytes) ) / sum(node_memory_MemTotal_bytes) * 100 > 75
+        for: 15m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: warning
+      - alert: Cluster Memory usage is above threshold 90%
+        annotations:
+          message: The Memory usage of the Cluster is above threshold value 90%
+        expr: (sum(node_memory_MemTotal_bytes) - sum(node_memory_MemFree_bytes + node_memory_Buffers_bytes
+          + node_memory_Cached_bytes) ) / sum(node_memory_MemTotal_bytes) * 100 > 90
+        for: 10m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: critical
+      - alert: Node CPU Usage is above threshold 75%
+        annotations:
+          message: The Node CPU usage of the Node is above threshold value 75%
+        expr: ((100 * sum(irate(container_cpu_usage_seconds_total{job="kubernetes-nodes-cadvisor",
+          id="/"}[5m])) by (instance)) / (sum (machine_cpu_cores{job="kubernetes-nodes-cadvisor"})
+          by (instance))) > 75
+        for: 5m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: warning
+      - alert: Node CPU Usage is above threshold 90%
+        annotations:
+          message: The Node CPU usage of the Node is above threshold value 90%
+        expr: ((100 * sum(irate(container_cpu_usage_seconds_total{job="kubernetes-nodes-cadvisor",
+          id="/"}[5m])) by (instance)) / (sum (machine_cpu_cores{job="kubernetes-nodes-cadvisor"})
+          by (instance))) > 90
+        for: 5m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: critical
+      - alert: Node Memory Usage is above threshold 75%
+        annotations:
+          message: The Node Memory usage of the Node is above threshold value 75%
+        expr: (((node_memory_MemTotal_bytes-node_memory_MemFree_bytes-node_memory_Cached_bytes)/(node_memory_MemTotal_bytes)*100))
+          > 75
+        for: 5m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: warning
+      - alert: Node Memory Usage is above threshold 90%
+        annotations:
+          message: The Node Memory usage of the Node is above threshold value 90%
+        expr: (((node_memory_MemTotal_bytes-node_memory_MemFree_bytes-node_memory_Cached_bytes)/(node_memory_MemTotal_bytes)*100))
+          > 90
+        for: 5m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: critical
+      - alert: AppSMSRDeploymentDown
+        annotations:
+          message: The SMSR pod is not running, check the deployment logs and inform to
+            Gigsky team
+        expr: kube_pod_status_phase{pod=~"^smsr-deployment.*", phase="Running"} * on (pod,namespace)
+          group_right kube_pod_labels == 0
+        for: 2m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: critical
+      - alert: AppRSMDeploymentDown
+        annotations:
+          message: The RSM pod is not running, check the deployment logs and inform to
+            Gigsky team
+        expr: kube_pod_status_phase{pod=~"^rsm-deployment.*", phase="Running"} * on (pod,namespace)
+          group_right kube_pod_labels == 0
+        for: 2m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: critical
+      - alert: AppRSMPortalDeploymentDown
+        annotations:
+          message: The RSM Portal deployment is not running, check the deployment logs
+            and inform to Gigsky team
+        expr: kube_pod_status_phase{pod=~"^rsm-portal-deployment.*", phase="Running"}
+          * on (pod,namespace) group_right kube_pod_labels == 0
+        for: 2m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: critical
+      - alert: AppSMDPDeploymentDown
+        annotations:
+          message: The SMDP pod is not running, check the deployment logs and inform to
+            Gigsky team
+        expr: kube_pod_status_phase{pod=~"^smdp-deployment.*", phase="Running"} * on (pod,namespace)
+          group_right kube_pod_labels == 0
+        for: 2m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: critical
+      - alert: AppSMSGatewayDown
+        annotations:
+          message: The SMS Gateway pod is not running, check the deployment logs and inform
+            to Gigsky team
+        expr: kube_pod_status_phase{pod=~"^smsgateway-deployment.*", phase="Running"}
+          * on (pod,namespace) group_right kube_pod_labels == 0
+        for: 2m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: IKS
+          severity: critical
+      - alert: IstioDaemonOffline
+        annotations:
+          description: 'istiod pods have dropped during the last 5m (current value: *{{
+            printf "%2.0f%%" $value }}*). Envoy sidecars might have outdated configuration.'
+          summary: Istio Daemon Availability Drop / Offline
+        expr: |
+          avg(avg_over_time(up{app=~"istiod.*"}[2m])) < 0.5
+        for: 5m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: warning
+      - alert: IstionIngressGatewayOffline
+        annotations:
+          description: 'Istio Ingress Gateway available has dropped over the last 1m (current
+            value: *{{ printf "%2.0f%%" $value }}*). Inbound requests probably have had
+            errors.'
+          summary: Istio Ingress Gateway Availability Drop / Offline
+        expr: |
+          avg(avg_over_time(up{namespace=~"<cluster-name>|pre<cluster-name>|uat",istio=~"custom-ingressgateway.*"}[1m])) < 1
+        for: 1m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: page
+      - alert: IstionEgressGatewayOffline
+        annotations:
+          description: 'Istio Ingress Gateway available has dropped over the last 1m (current
+            value: *{{ printf "%2.0f%%" $value }}*). Outgoing request sto backend services
+            may had errors.'
+          summary: Istio Egress Gateway Availability Drop / Offline
+        expr: |
+          avg(avg_over_time(up{namespace=~"<cluster-name>|pre<cluster-name>|uat",istio=~"custom-egressgateway.*"}[1m])) < 1
+        for: 1m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: warning
+      - alert: IstionInternalGatewayOffline
+        annotations:
+          description: 'Istio Internal Ingress Gateway available has dropped over the
+            last 1m (current value: *{{ printf "%2.0f%%" $value }}*). Requests from DIP/other
+            clusters probably have had errors.'
+          summary: Istio Internal/Cluster Ingress Gateway Availability Drop / Offline
+        expr: |
+          avg(avg_over_time(up{namespace=~"<cluster-name>|pre<cluster-name>|uat",istio=~"internal-ingressgateway.*"}[1m])) < 1
+        for: 1m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: page
+      - alert: IstionInteracProxyGatewayOffline
+        annotations:
+          description: 'Interac e-Transfer Services proxy available has dropped over the
+            last 1m (current value: *{{ printf "%2.0f%%" $value }}*). Requests from DIP/other
+            clusters probably have had errors.'
+          summary: Istio Interac e-Transfer Services proxy Availability Drop / Offline
+        expr: |
+          avg(avg_over_time(up{namespace=~"<cluster-name>|pre<cluster-name>|uat",app_kubernetes_io_name=~"payaas-interac-mtls-rp.*"}[1m])) < 1
+        for: 1m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: page
+      - alert: IstioMetricsScrapeRateLow
+        annotations:
+          description: Istio Prometheus Metrics agent scraps is too low. Data collection
+            and alerting may be affected.
+          summary: Number of Istio Metrics scapes is too low
+        expr: |
+          sum(rate(istio_agent_scrapes_total[2m])) < 4
+        for: 2m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: warning
+      - alert: IstioTestPodReplicaLow
+        annotations:
+          description: 'Service Mesh test pods have dropped during the last 1m (current
+            value: *{{ printf "%2.0f%%" $value }}*). Traffic to test API may be affected.
+            TEST ALERT ONLY, NO CLIENT IMPACT.'
+          summary: Istio Test Pod Replica Count Low
+        expr: |
+          count(count(container_cpu_load_average_10s{namespace=~"<cluster-name>|pre<cluster-name>|uat",pod=~"payaas-ehb-test.*"}) by (pod)) < 1
+        for: 1m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: info
+      - alert: IstioIngressReplicaLow
+        annotations:
+          description: 'Ingress Gateway pods have dropped during the last 2m (current
+            value: *{{ printf "%2.0f%%" $value }}*). Inbound traffic may be affected.'
+          summary: Istio Ingress Gateway Replica Count Low
+        expr: |
+          count(count(container_cpu_load_average_10s{namespace=~"<cluster-name>|pre<cluster-name>|uat",pod=~"custom-ingress.*"}) by (pod)) < 3
+        for: 2m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: severe
+      - alert: IstioEgressReplicaLow
+        annotations:
+          description: 'Egress Gateway pods have dropped during the last 2m (current value:
+            *{{ printf "%2.0f%%" $value }}*). Inbound traffic may be affected.'
+          summary: Istio Client Ingress Gateway Replica Count Low
+        expr: |
+          count(count(container_cpu_load_average_10s{namespace=~"<cluster-name>|pre<cluster-name>|uat",pod=~"custom-egress.*"}) by (pod)) < 3
+        for: 2m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: severe
+      - alert: IstioInternalIngressReplicaLow
+        annotations:
+          description: 'Internal Ingress Gateway pods have dropped during the last 2m
+            (current value: *{{ printf "%2.0f%%" $value }}*). Inbound traffic from other
+            clusters may be affected.'
+          summary: Istio Internal/DIP Ingress Gateway Replica Count Low
+        expr: |
+          count(count(container_cpu_load_average_10s{namespace=~"<cluster-name>|pre<cluster-name>|uat",pod=~"internal-ingress.*"}) by (pod)) < 3
+        for: 2m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: warning
+      - alert: IstioInteracProxyReplicaLow
+        annotations:
+          description: 'Interac e-Transfer Services proxy pods have dropped during the
+            last 2m (current value: *{{ printf "%2.0f%%" $value }}*). Traffic to e-Transfer
+            services may be affected.'
+          summary: Istio Interac Reverse ProxyReplica Count Low
+        expr: |
+          count(count(container_cpu_load_average_10s{namespace=~"<cluster-name>|pre<cluster-name>|uat",pod=~"payaas-interac-mtls-rp.*"}) by (pod)) < 3
+        for: 2m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: severe
+      - alert: IstioTestRateTooHigh
+        annotations:
+          description: Istio Service mesh has received a rate of test API calls to trigger
+            an artifical alert. THIS IS A TEST ALERT.
+          summary: Istio Service Mesh TEST ALERT -- IGNORE
+        expr: |
+          sum(rate(istio_requests_total{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat",destination_canonical_service=~"payaas-ehb-test",response_code=~"2.."}[5m])) * 60 > 10
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: info
+      - alert: IstioGlobalRequestRateHigh
+        annotations:
+          description: 'Istio global request rate is unusually high during the last 5m
+            (current value: *{{ printf "%2.0f%%" $value }}*). The amount of traffic being
+            generated inside the service mesh is higher than normal.'
+          summary: Istio Global Request Rate High
+        expr: |
+          sum(rate(istio_requests_total{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat"}[5m])) > 100
+        for: 5m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: warning
+      - alert: IstioGlobalRequestRateLow
+        annotations:
+          description: 'Istio global request rate is unusually low during the last 5m
+            (current value: *{{ printf "%2.0f%%" $value }}*). The amount of traffic being
+            generated inside the service mesh has dropped below usual levels.'
+          summary: Istio global request rate too low
+        expr: |
+          sum(rate(istio_requests_total{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat"}[5m])) < 2
+        for: 5m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: critical
+      - alert: IstioGlobalHTTP5xxRatioHigh
+        annotations:
+          description: 'Istio global HTTP 5xx rate is too high in last 2m (current value:
+            *{{ printf "%2.0f%%" $value }}*). The HTTP 5xx errors within the service mesh
+            is unusually high.'
+          summary: Istio Overall Ratio of HTTP 5xx responses is too high
+        expr: |
+          sum(rate(istio_requests_total{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat",response_code=~"5.."}[5m])) / sum(rate(istio_requests_total{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat"}[5m])) > 0.005
+        for: 2m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: critical
+      - alert: IstioGlobalHTTP4xxRatioHigh
+        annotations:
+          description: 'Istio global HTTP 4xx vs. 2xx rate is too high in last 10m (current
+            value: *{{ printf "%2.0f%%" $value }}*). The HTTP 4xx response relative frequency
+            within the service mesh is unusually high.'
+          summary: Istio Overall Ratio of HTTP 4xx responses is to ohigh
+        expr: |
+          sum(rate(istio_requests_total{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat",destination_canonical_service=~"payaas.*",response_code=~"4.."}[5m])) / sum(rate(istio_requests_total{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat",destination_canonical_service=~"payaas.*",response_code=~"2.."}[5m])) > 0.04
+        for: 10m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: warning
+      - alert: IstioGlobalHTTP3xxRatioHigh
+        annotations:
+          description: 'Istio global HTTP 3xx vs. 2xx rate is too high in last 10m (current
+            value: *{{ printf "%2.0f%%" $value }}*). The HTTP 3xx response relative frequency
+            within the service mesh is unusually high.'
+          summary: Istio Overall Ratio of HTTP 3xx responses is too high
+        expr: |
+          sum(rate(istio_requests_total{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat",destination_canonical_service=~"payaas.*",response_code=~"3.."}[5m])) / sum(rate(istio_requests_total{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat",destination_canonical_service=~"payaas.*",response_code=~"2.."}[5m])) > 0.04
+        for: 10m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: warning
+      - alert: ServiceEmtReceiveMoneyErrorRateHigh
+        annotations:
+          description: 'Istio emt-receivemoney HTTP error rate is too high in last 10m
+            (current value: *{{ printf "%2.0f%%" $value }}*).'
+          summary: Istio Rate of emt-receivemoney service errors too high
+        expr: |
+          sum(rate(istio_requests_total{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat",destination_canonical_service=~"payaas-ms-emt-receivemoney",response_code=~"401|403|404|5.."}[5m])) / sum(rate(istio_requests_total{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat",destination_canonical_service=~"payaas-ms-emt-receivemoney"}[5m])) > 0.01
+        for: 10m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: info
+      - alert: IstioTestLatencyTooHigh
+        annotations:
+          description: Istio Service mesh has received a rate of test API calls to trigger
+            an artifical alert. THIS IS A TEST ALERT.
+          summary: Istio Service Mesh TEST ALERT -- IGNORE
+        expr: |
+          sum(rate(istio_request_duration_milliseconds_bucket{reporter="destination",destination_canonical_service=~"payaas-ehb-test",response_code=~"2.."}[5m])) * 60 > 10
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: info
+      - alert: IstioGlobalRequestDurationHigh
+        annotations:
+          description: WIP see https://github.com/openrca/orca/issues/65
+          summary: Istio Global Request Duration Abnormal Increase
+        expr: |
+          sum(rate(istio_request_duration_milliseconds_bucket{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat"}[5m])) > 100
+        for: 5m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: warning
+      - alert: IstioGlobalRequestDurationLow
+        annotations:
+          description: WIP see https://github.com/openrca/orca/issues/65
+          summary: Istio Global Request Duration Abnormal Decrease
+        expr: |
+          sum(rate(istio_request_duration_milliseconds_bucket{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat"}[5m])) > 100
+        for: 5m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: warning
+      - alert: IstioGlobalRequestSizeHigh
+        annotations:
+          description: WIP see https://github.com/openrca/orca/issues/65
+          summary: Istio Global Request Size Abnormal Increase
+        expr: |
+          sum(rate(istio_request_duration_milliseconds_bucket{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat"}[5m])) > 100
+        for: 5m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: warning
+      - alert: IstioGlobalRequestSizeLow
+        annotations:
+          description: WIP see https://github.com/openrca/orca/issues/65
+          summary: Istio Global Request Size Abnormal Decrease
+        expr: |
+          sum(rate(istio_request_duration_milliseconds_bucket{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat"}[5m])) > 100
+        for: 5m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: warning
+      - alert: IstioEMTReceiveMoneyRequestSLO
+        annotations:
+          description: 'The request latency cutoff for payaas-ms-emt-receivemoney.* above
+            quantile P-0.95 during the last 2m is too high, impacting SLO objectives (alert
+            level >5000, current value: *{{ printf "%2.0f%%" $value }}*)'
+          summary: Istio EMT Receive Money Latency SLO
+        expr: |
+          histogram_quantile(0.95,sum(rate(istio_request_duration_milliseconds_bucket{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat",destination_canonical_service=~"payaas-ms-emt-receivemoney.*",response_code!~"5.."}[2m])) by (le)) >5000
+        for: 2m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: severe
+      - alert: IstioEMTCreateTransferRequestSLO
+        annotations:
+          description: 'The request latency cutoff for payaas-ms-emt-createtransfer.*
+            above quantile P-0.95 during the last 2m is too high, impacting SLO objectives
+            (warninging level > 5000, current value: *{{ printf "%2.0f%%" $value }}*)'
+          summary: Istio EMT Create Transfer Latency SLO
+        expr: |
+          histogram_quantile(0.95,sum(rate(istio_request_duration_milliseconds_bucket{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat",destination_canonical_service=~"payaas-ms-emt-createtransfer.*",response_code!~"5.."}[2m])) by (le)) > 5000
+        for: 2m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: severe
+      - alert: IstioEMTOtherRequestSLO
+        annotations:
+          description: 'The request latency cutoff for all requests except payaas-ms-emt-(receivemoney|createtransfer).*
+            above quantile P-0.95 during the last 5m is too high, impacting SLO objectives
+            (alert level > 500, current value: *{{ printf "%2.0f%%" $value }}*)'
+          summary: Istio Other Request Rate High
+        expr: |
+          histogram_quantile(0.95,sum(rate(istio_request_duration_milliseconds_bucket{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat",destination_canonical_service=~"payaas.*",destination_canonical_service!~"payaas-ms-emt-(receivemoney|createtransfer).*",response_code!~"5.."}[2m])) by (le)) > 500
+        for: 5m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: warning
+      - alert: IstioEMTReceiveMoneyAppdex
+        annotations:
+          description: 'The proportion of payaas-ms-emt-receivemoney.* requests within
+            target ms (2500) and within tolerate ms (5000) during the last 5m is too low,
+            probably causing user frustration (Apdex metric, current value: *{{ printf
+            "%2.0f%%" $value }}*)'
+          summary: Istio EMT Receive Money User Experience is poor.
+        expr: |
+          ( sum(rate(istio_request_duration_milliseconds_bucket{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat",le="2500",destination_canonical_service=~"payaas-ms-emt-receivemoney.*",response_code!~"5.."}[5m]))  + sum(rate(istio_request_duration_milliseconds_bucket{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat",le="5000",destination_canonical_service=~"payaas-ms-emt-receivemoney.*",response_code!~"5.."}[5m])) ) * 0.5 / sum(rate(istio_request_duration_milliseconds_count{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat",destination_canonical_service=~"payaas-ms-emt-receivemoney.*",response_code!~"5.."}[5m]))  < 0.9
+        for: 5m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: warning
+      - alert: IstioEMTReceiveMoneyAppdex
+        annotations:
+          description: 'The proportion of payaas-ms-emt-createtransfer.* requests within
+            target ms (2500) and within tolerate ms (5000) during the last 5m is too low,
+            probably causing user frustration (Apdex metric, current value: *{{ printf
+            "%2.0f%%" $value }}*)'
+          summary: Istio EMT Create Transfer User Experience is poor.
+        expr: |
+          ( sum(rate(istio_request_duration_milliseconds_bucket{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat",le="2500",destination_canonical_service=~"payaas-ms-emt-createtransfer.*",response_code!~"5.."}[5m]))  + sum(rate(istio_request_duration_milliseconds_bucket{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat",le="5000",destination_canonical_service=~"payaas-ms-emt-createtransfer.*",response_code!~"5.."}[5m])) ) * 0.5 / sum(rate(istio_request_duration_milliseconds_count{destination_workload_namespace=~"<cluster-name>|pre<cluster-name>|uat",destination_canonical_service=~"payaas-ms-emt-createtransfer.*",response_code!~"5.."}[5m]))  < 0.9
+        for: 5m
+        labels:
+          cluster: Prometheus_Cups_k8s_ipccprod
+          resource: Istio
+          severity: warning
+  allow-snippet-annotations: 'false'
+  prometheus.yml: |
+    global:
+      evaluation_interval: 1m
+      scrape_interval: 1m
+      scrape_timeout: 10s
+    rule_files:
+    - /etc/config/recording_rules.yml
+    - /etc/config/alerting_rules.yml
+    - /etc/config/rules
+    - /etc/config/alerts
+    scrape_configs:
+    - job_name: prometheus
+      static_configs:
+      - targets:
+        - localhost:9090
+    - job_name: istio-mesh
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - action: keep
+        regex: istio-system;istio-mixer;prometheus
+        source_labels:
+        - __meta_kubernetes_namespace
+        - __meta_kubernetes_service_name
+        - __meta_kubernetes_endpoint_port_name
+      scrape_interval: 5s
+    - job_name: envoy
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - action: keep
+        regex: istio-system;istio-mixer;statsd-prom
+        source_labels:
+        - __meta_kubernetes_namespace
+        - __meta_kubernetes_service_name
+        - __meta_kubernetes_endpoint_port_name
+      scrape_interval: 5s
+    - job_name: mixer
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - action: keep
+        regex: istio-system;istio-mixer;http-monitoring
+        source_labels:
+        - __meta_kubernetes_namespace
+        - __meta_kubernetes_service_name
+        - __meta_kubernetes_endpoint_port_name
+      scrape_interval: 5s
+    - job_name: pilot
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - action: keep
+        regex: istio-system;istio-pilot;http-monitoring
+        source_labels:
+        - __meta_kubernetes_namespace
+        - __meta_kubernetes_service_name
+        - __meta_kubernetes_endpoint_port_name
+      scrape_interval: 5s
+    - bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      job_name: kubernetes-apiservers
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - action: keep
+        regex: default;kubernetes;https
+        source_labels:
+        - __meta_kubernetes_namespace
+        - __meta_kubernetes_service_name
+        - __meta_kubernetes_endpoint_port_name
+      scheme: https
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        insecure_skip_verify: true
+    - bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      job_name: kubernetes-nodes
+      kubernetes_sd_configs:
+      - role: node
+      relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+      - replacement: kubernetes.default.svc:443
+        target_label: __address__
+      - regex: (.+)
+        replacement: /api/v1/nodes/$1/proxy/metrics
+        source_labels:
+        - __meta_kubernetes_node_name
+        target_label: __metrics_path__
+      scheme: https
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        insecure_skip_verify: true
+    - bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      job_name: kubernetes-nodes-cadvisor
+      kubernetes_sd_configs:
+      - role: node
+      relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+      - replacement: kubernetes.default.svc:443
+        target_label: __address__
+      - regex: (.+)
+        replacement: /api/v1/nodes/$1/proxy/metrics/cadvisor
+        source_labels:
+        - __meta_kubernetes_node_name
+        target_label: __metrics_path__
+      scheme: https
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        insecure_skip_verify: true
+    - job_name: kubernetes-service-endpoints
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - action: keep
+        regex: true
+        source_labels:
+        - __meta_kubernetes_service_annotation_prometheus_io_scrape
+      - action: replace
+        regex: (https?)
+        source_labels:
+        - __meta_kubernetes_service_annotation_prometheus_io_scheme
+        target_label: __scheme__
+      - action: replace
+        regex: (.+)
+        source_labels:
+        - __meta_kubernetes_service_annotation_prometheus_io_path
+        target_label: __metrics_path__
+      - action: replace
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+        source_labels:
+        - __address__
+        - __meta_kubernetes_service_annotation_prometheus_io_port
+        target_label: __address__
+      - action: labelmap
+        regex: __meta_kubernetes_service_label_(.+)
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_namespace
+        target_label: kubernetes_namespace
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_service_name
+        target_label: kubernetes_name
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_pod_node_name
+        target_label: kubernetes_node
+    - job_name: kubernetes-service-endpoints-slow
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - action: keep
+        regex: true
+        source_labels:
+        - __meta_kubernetes_service_annotation_prometheus_io_scrape_slow
+      - action: replace
+        regex: (https?)
+        source_labels:
+        - __meta_kubernetes_service_annotation_prometheus_io_scheme
+        target_label: __scheme__
+      - action: replace
+        regex: (.+)
+        source_labels:
+        - __meta_kubernetes_service_annotation_prometheus_io_path
+        target_label: __metrics_path__
+      - action: replace
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+        source_labels:
+        - __address__
+        - __meta_kubernetes_service_annotation_prometheus_io_port
+        target_label: __address__
+      - action: labelmap
+        regex: __meta_kubernetes_service_label_(.+)
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_namespace
+        target_label: kubernetes_namespace
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_service_name
+        target_label: kubernetes_name
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_pod_node_name
+        target_label: kubernetes_node
+      scrape_interval: 5m
+      scrape_timeout: 30s
+    - honor_labels: true
+      job_name: prometheus-pushgateway
+      kubernetes_sd_configs:
+      - role: service
+      relabel_configs:
+      - action: keep
+        regex: pushgateway
+        source_labels:
+        - __meta_kubernetes_service_annotation_prometheus_io_probe
+    - job_name: kubernetes-services
+      kubernetes_sd_configs:
+      - role: service
+      metrics_path: /probe
+      params:
+        module:
+        - http_2xx
+      relabel_configs:
+      - action: keep
+        regex: true
+        source_labels:
+        - __meta_kubernetes_service_annotation_prometheus_io_probe
+      - source_labels:
+        - __address__
+        target_label: __param_target
+      - replacement: blackbox
+        target_label: __address__
+      - source_labels:
+        - __param_target
+        target_label: instance
+      - action: labelmap
+        regex: __meta_kubernetes_service_label_(.+)
+      - source_labels:
+        - __meta_kubernetes_namespace
+        target_label: kubernetes_namespace
+      - source_labels:
+        - __meta_kubernetes_service_name
+        target_label: kubernetes_name
+    - job_name: kubernetes-pods
+      kubernetes_sd_configs:
+      - role: pod
+      relabel_configs:
+      - action: keep
+        regex: true
+        source_labels:
+        - __meta_kubernetes_pod_annotation_prometheus_io_scrape
+      - action: replace
+        regex: (.+)
+        source_labels:
+        - __meta_kubernetes_pod_annotation_prometheus_io_path
+        target_label: __metrics_path__
+      - action: replace
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+        source_labels:
+        - __address__
+        - __meta_kubernetes_pod_annotation_prometheus_io_port
+        target_label: __address__
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_namespace
+        target_label: kubernetes_namespace
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_pod_name
+        target_label: kubernetes_pod_name
+    - job_name: kubernetes-pods-slow
+      kubernetes_sd_configs:
+      - role: pod
+      relabel_configs:
+      - action: keep
+        regex: true
+        source_labels:
+        - __meta_kubernetes_pod_annotation_prometheus_io_scrape_slow
+      - action: replace
+        regex: (.+)
+        source_labels:
+        - __meta_kubernetes_pod_annotation_prometheus_io_path
+        target_label: __metrics_path__
+      - action: replace
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+        source_labels:
+        - __address__
+        - __meta_kubernetes_pod_annotation_prometheus_io_port
+        target_label: __address__
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_namespace
+        target_label: kubernetes_namespace
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_pod_name
+        target_label: kubernetes_pod_name
+      scrape_interval: 5m
+      scrape_timeout: 30s
+    alerting:
+      alertmanagers:
+      - kubernetes_sd_configs:
+          - role: pod
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_namespace]
+          regex: monitoring
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_instance]
+          regex: ipccprod
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+          regex: alertmanager
+          action: keep
+        - source_labels: [__meta_kubernetes_pod_container_port_number]
+          regex: "9093"
+          action: keep
+  recording_rules.yml: |
+    {}
+  rules: |
+    {}
